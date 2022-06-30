@@ -14,7 +14,6 @@ function initCesium() {
             pitch : Cesium.Math.toRadians(-90.0),
         }
     });
-
     _this.viewer = viewer;
     _this.base_point = cart2vec(Cesium.Cartesian3.fromDegrees(LNG, LAT, 50));
     _this.base_point_up = cart2vec(Cesium.Cartesian3.fromDegrees(LNG, LAT, 300));
@@ -38,7 +37,68 @@ function initCesium() {
           show: true,
         })
       );
-    applyWaterMaterial(worldRectangle, scene);
+    // applyWaterMaterial(worldRectangle, scene);
+
+    
+    LoadClouds(viewer);
+}
+function LoadClouds(viewer) {
+    console.log(viewer)
+    const worldRectangle1 = viewer.scene.primitives.add(new Cesium.Primitive({
+        geometryInstances: new Cesium.GeometryInstance({
+            geometry: new Cesium.RectangleGeometry({
+                rectangle: Cesium.Rectangle.fromDegrees(-180.0, -90.0, 180.0, 90.0),
+                vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT
+            })
+        }),
+        appearance: new Cesium.EllipsoidSurfaceAppearance({
+            material: new Cesium.Material({
+                fabric: {
+                    type: 'Image',
+                    uniforms: {
+                        image: 'http://127.0.0.1:5555/map.png',
+                        radians: 0,
+                    },
+                    //shader
+                    source: `
+              #define M_PI 3.1415926535897932384626433832795
+  
+              uniform sampler2D image;
+              uniform float radians;
+              
+              czm_material czm_getMaterial(czm_materialInput materialInput)
+              {
+                czm_material material = czm_getDefaultMaterial(materialInput);
+                vec2 st = vec2(materialInput.st.x - 0.5, materialInput.st.y - 0.5);
+                float alpha = 1.3 - st.x - 0.5;
+                float current_radians = atan(st.y, st.x);
+                float radius = sqrt(st.x * st.x + st.y * st.y);
+                if (radius < 0.50) {
+                  current_radians = current_radians - radians;
+                  st = vec2(cos(current_radians) * radius, sin(current_radians) * radius);
+                  st = vec2(st.x + 0.5, st.y + 0.5);
+                  vec4 colorImage = texture2D(image, st);
+                  material.diffuse = colorImage.rgb;
+                  material.alpha = colorImage.a * alpha;
+                } else {
+                  material.alpha = 0.0;
+                }
+  
+                return material;
+              }
+              `
+                }
+            }),
+            aboveGround: true
+        }),
+        show: true
+    }))
+    var radians = 0
+    viewer.scene.postRender.addEventListener(() => {
+        radians += Math.PI / 50000;
+        console.log(radians)
+        worldRectangle1.appearance.material.uniforms.radians = radians;
+    });
 }
 function applyWaterMaterial(primitive, scene) {
   
@@ -48,7 +108,7 @@ function applyWaterMaterial(primitive, scene) {
             uniforms: {
                 specularMap: "./earthspec1k.jpg",
                 normalMap: Cesium.buildModuleUrl(
-                "http://127.0.0.1:5556/waterNormals.jpg"
+                "http://127.0.0.1:5555/waterNormals.jpg"
                 ),
                 frequency: 100000.0,
                 animationSpeed: 0.1,
@@ -66,13 +126,76 @@ function setShy(){
         color:Cesium.Color.WHITE.withAlpha(0.5)
         
     })
+    const customShader = new Cesium.CustomShader({
+        uniforms: {
+            u_colorIndex: {
+              type: Cesium.UniformType.FLOAT,
+              value: 1.0
+            },
+            u_normalMap: {
+              type: Cesium.UniformType.SAMPLER_2D,
+              value: new Cesium.TextureUniform({
+                url: "http://127.0.0.1:5555/map.png"
+              })
+            }
+          },
+          isTranslucent:true,
+          varyings: {
+            v_selectedColor: Cesium.VaryingType.VEC3
+          },
+
+          vertexShaderText: `
+          void vertexMain(VertexInput vsInput, inout czm_modelVertexOutput vsOutput) {
+            console.log('7777777777777777777777777777',vsInput, vsOutput)
+          }
+          `,
+          fragmentShaderText: `
+          void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
+          }
+          `});
     const redSphere = _this.viewer.entities.add({
         name: "Red sphere with black outline",
         position:new Cesium.Cartesian3(),
         ellipsoid: {
             radii: new Cesium.Cartesian3(radius, radius, radius),
-            material: material,
-        },
+            // material: new Cesium.Material({
+            //     fabric: {
+            //         type: 'Image',
+            //         uniforms: {
+            //             image: 'http://127.0.0.1:5555/map.png',
+            //             radians: 0,
+            //         },
+            //         //shader
+            //         source: `
+            //   #define M_PI 3.1415926535897932384626433832795
+  
+            //   uniform sampler2D image;
+            //   uniform float radians;
+              
+            //   czm_material czm_getMaterial(czm_materialInput materialInput)
+            //   {
+            //     czm_material material = czm_getDefaultMaterial(materialInput);
+            //     vec2 st = vec2(materialInput.st.x - 0.5, materialInput.st.y - 0.5);
+            //     float alpha = 1.3 - st.x - 0.5;
+            //     float current_radians = atan(st.y, st.x);
+            //     float radius = sqrt(st.x * st.x + st.y * st.y);
+            //     if (radius < 0.50) {
+            //       current_radians = current_radians - radians;
+            //       st = vec2(cos(current_radians) * radius, sin(current_radians) * radius);
+            //       st = vec2(st.x + 0.5, st.y + 0.5);
+            //       vec4 colorImage = texture2D(image, st);
+            //       material.diffuse = colorImage.rgb;
+            //       material.alpha = 0.1;
+            //     } else {
+            //       material.alpha = 0.0;
+            //     }
+  
+            //     return material;
+            //   }
+            //   `
+            //     }
+            // })
+        }
     });
 }
 function initBabylon() {
@@ -150,7 +273,10 @@ function getAdministrativeDivision() {
         level: 'province'  //查询行政级别为 市
     };
     let district = new AMap.DistrictSearch(opts);
-    let positions = []
+    provinces = ["北京", "天津", "上海", "重庆", "新疆", "西藏", "宁夏", "内蒙古",
+             "广西", "黑龙江", "吉林", "辽宁", "河北", "山东", "江苏", "安徽",
+             "浙江", "福建", "广东", "海南", "云南", "贵州", "四川", "湖南",
+             "湖北", "河南", "山西", "陕西", "甘肃", "青海", "江西", "台湾", "香港", "澳门"]
     console.log('district',district)
     // district.search('河北', function(status, result) {
     //    console.log(status,result.districtList[0].boundaries[0])
@@ -160,49 +286,34 @@ function getAdministrativeDivision() {
     //     // console.log("positions",positions)
     //     draw(positions)
     // });
-    district.search('福建', function(status, result) {
-        console.log(status,result.districtList[0].boundaries[0])
-        result.districtList[0].boundaries.forEach(ele=>{
-            ele.forEach(ele1=>{
-                positions.push(Cesium.Cartesian3.fromDegrees(ele1.lng, ele1.lat, 10000));
-            })
-        })
-        //  console.log("positions",positions)
-        draw(positions)
-     });
-    //  district.search('江西', function(status, result) {
-    //     console.log(status,result.districtList[0].boundaries[0])
-    //     result.districtList[0].boundaries.forEach(ele=>{
-    //         ele.forEach(ele1=>{
-    //             positions.push(Cesium.Cartesian3.fromDegrees(ele1.lng, ele1.lat, 10000));
-    //         })
-    //     })
-    //     //  console.log("positions",positions)
-    //     draw(positions)
-    //  });
+    provinces = ["中国"]
+    for(let i=0;i<provinces.length;i++){
+        
+        district.search(provinces[i], function(status, result) {
+            let lenght = result.districtList[0].boundaries.length
+            console.log(status,result.districtList[0].boundaries[0])
+            for(let i=0;i<lenght;i++){
+                let positions = []
+                result.districtList[0].boundaries[i].forEach(ele=>{
+                    positions.push(Cesium.Cartesian3.fromDegrees(ele.lng, ele.lat, 10000));
+                })
+                draw(positions)
+            }
+            
+        });
+    } 
 }
 
 function draw(positions) {
-    // let positions = []
-    // for (i = 0; i < 40; ++i) {
-    //     positions.push(Cesium.Cartesian3.fromDegrees(-100.0 + i, 15.0));
-    // }
-    console.log("positions",positions)
     let entities = _this.viewer.entities;
     entities.add({
         polyline: {
           positions: positions,
           width: 5,
-          material: new Cesium.Material({
-            fabric: {
-                type: "Fade",
-                uniforms: {
-                    fadeInColor: "ref",
-                    fadeOutColor: "blue",
-                    time:100
-                }
-            }
-        })
+          material: new Cesium.PolylineGlowMaterialProperty({
+            color: Cesium.Color.DEEPSKYBLUE,
+            glowPower: 0.25,
+          }),
         },
       });
       
