@@ -443,11 +443,41 @@ function animationTest() {
                 color: Cesium.Color.YELLOW,
                 dashLength: 8
             }),
-            width: 10,
+            width: 5,
         },
     });
 
     viewer.zoomTo(entity)
+
+    // Add a polyline to the scene. Positions are dynamic.
+    const isConstant = false;
+    viewer.clock.shouldAnimate = true;
+    const redLine = viewer.entities.add({
+        polyline: {
+            // This callback updates positions each frame.
+            positions: new Cesium.CallbackProperty(function (time, result) {
+                let position = entity.position.getValue(time);//获取当前时刻的坐标
+                console.log('position: ', position);
+                result.push(position);
+                return result;
+            }, isConstant),
+            width: 20,
+            material: new Cesium.PolylineGlowMaterialProperty({
+                glowPower: 0.1,
+                color: Cesium.Color.YELLOW,
+                dashLength: 10
+            }),
+        },
+    });
+
+    let _eventListener = viewer.scene.preUpdate.addEventListener(function () {
+        let time = viewer.clock.currentTime;
+        let position = entity.position.getValue(time);//获取当前时刻的坐标
+        //moveEntity.availablility.get(0).start;//获取动画实体本身的开始时间
+        //moveEntity.availablility.get(0).stop;//获取动画实体本身的结束时间
+
+    })
+
 }
 
 initCesium();
@@ -456,8 +486,8 @@ initCesium();
 
 animationTest()
 
-_this.engine.runRenderLoop(() => {
-    _this.viewer.render();
-    // moveBabylonCamera();
-    // _this.scene.render();
-});
+// _this.engine.runRenderLoop(() => {
+//     _this.viewer.render();
+//     // moveBabylonCamera();
+//     // _this.scene.render();
+// });
