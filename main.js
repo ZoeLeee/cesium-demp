@@ -3,10 +3,11 @@ const _this = {};
 const canvas = document.getElementsByTagName("canvas")[0];
 const LNG = -122.4175, LAT = 37.655;
 const radius = 750000000.0;
+let viewer
 
 function initCesium() {
     let worldRectangle;
-    const viewer = new Cesium.Viewer('cesiumContainer');
+    viewer = new Cesium.Viewer('cesiumContainer');
     const scene = viewer.scene;
     // viewer.camera.flyTo({
     //     destination : Cesium.Cartesian3.fromDegrees(LNG, LAT, 300),
@@ -16,9 +17,16 @@ function initCesium() {
     //     }
     // });
     _this.viewer = viewer;
+
+    //Enable lighting based on the sun position
+    // viewer.scene.globe.enableLighting = true;
+
+    //Enable depth testing so things behind the terrain disappear.
+    // viewer.scene.globe.depthTestAgainstTerrain = true;
+
     _this.base_point = cart2vec(Cesium.Cartesian3.fromDegrees(LNG, LAT, 50));
     _this.base_point_up = cart2vec(Cesium.Cartesian3.fromDegrees(LNG, LAT, 300));
-    setShy()
+    // setShy()
     // worldRectangle = scene.primitives.add(
     //     new Cesium.Primitive({
     //         geometryInstances: new Cesium.GeometryInstance({
@@ -41,7 +49,7 @@ function initCesium() {
     // applyWaterMaterial(worldRectangle, scene);
 
 
-    LoadClouds(viewer);
+    // LoadClouds(viewer);
 }
 
 const source = `
@@ -101,7 +109,7 @@ function LoadClouds(viewer) {
             geometry: new Cesium.RectangleGeometry({
                 rectangle: Cesium.Rectangle.fromDegrees(-180.0, -90.0, 180.0, 90.0),
                 vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT,
-                height: 1e6,
+                height: 0,
                 // ellipsoid: {
                 //     radii: new Cesium.Cartesian3(radius, radius, radius),
                 // }
@@ -348,11 +356,108 @@ function draw(positions) {
     _this.viewer.zoomTo(entities);
 }
 
+function animationTest() {
+
+    //Set the random number seed for consistent results.
+    Cesium.Math.setRandomNumberSeed(3);
+
+    //Set bounds of our simulation time
+    const start = Cesium.JulianDate.fromDate(new Date(2015, 2, 25, 16));
+    const stop = Cesium.JulianDate.addSeconds(
+        start,
+        360,
+        new Cesium.JulianDate()
+    );
+
+    //Make sure viewer is at the desired time.
+    viewer.clock.startTime = start.clone();
+    viewer.clock.stopTime = stop.clone();
+    viewer.clock.currentTime = start.clone();
+    viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP; //Loop at the end
+    viewer.clock.multiplier = 10;
+
+    //Set timeline to simulation bounds
+    viewer.timeline.zoomTo(start, stop);
+
+    //Generate a random circular pattern with varying heights.
+    function computeCirclularFlight(lon, lat, radius) {
+        const property = new Cesium.SampledPositionProperty();
+        for (let i = 0; i <= 360; i += 10) {
+            const radians = Cesium.Math.toRadians(i);
+            const time = Cesium.JulianDate.addSeconds(
+                start,
+                i,
+                new Cesium.JulianDate()
+            );
+            const position = Cesium.Cartesian3.fromDegrees(
+                lon + radius * 1.5 * Math.cos(radians),
+                lat + radius * Math.sin(radians),
+                1750
+            );
+            property.addSample(time, position);
+
+            //Also create a point for each sample we generate.
+            // viewer.entities.add({
+            //     position: position,
+            //     point: {
+            //         pixelSize: 8,
+            //         color: Cesium.Color.TRANSPARENT,
+            //         outlineColor: Cesium.Color.YELLOW,
+            //         outlineWidth: 3,
+            //     },
+            // });
+        }
+        return property;
+    }
+
+    //Compute the entity position property.
+    const position = computeCirclularFlight(-112.110693, 36.0994841, 0.03);
+
+    //Actually create the entity
+    const entity = viewer.entities.add({
+        //Set the entity availability to the same interval as the simulation time.
+        availability: new Cesium.TimeIntervalCollection([
+            new Cesium.TimeInterval({
+                start: start,
+                stop: stop,
+            }),
+        ]),
+
+        //Use our computed positions
+        position: position,
+
+        //Automatically compute orientation based on position movement.
+        orientation: new Cesium.VelocityOrientationProperty(position),
+
+        //Load the Cesium plane model to represent the entity
+        model: {
+            uri: "./Cesium_Air.glb",
+            minimumPixelSize: 64,
+        },
+
+        //Show the path as a pink line sampled in 1 second increments.
+        path: {
+            resolution: 1,
+            material: new Cesium.PolylineDashMaterialProperty({
+                glowPower: 0.1,
+                color: Cesium.Color.YELLOW,
+                dashLength: 8
+            }),
+            width: 10,
+        },
+    });
+
+    viewer.zoomTo(entity)
+}
+
 initCesium();
-initBabylon();
-getAdministrativeDivision();
+// initBabylon();
+// getAdministrativeDivision();
+
+animationTest()
+
 _this.engine.runRenderLoop(() => {
     _this.viewer.render();
-    moveBabylonCamera();
-    _this.scene.render();
+    // moveBabylonCamera();
+    // _this.scene.render();
 });
