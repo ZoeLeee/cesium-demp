@@ -456,8 +456,12 @@ function animationTest() {
         polyline: {
             // This callback updates positions each frame.
             positions: new Cesium.CallbackProperty(function (time, result) {
+                if (result.length > 2200) {
+                    result.length = 0;
+                    return result
+                }
                 let position = entity.position.getValue(time);//获取当前时刻的坐标
-                console.log('position: ', position);
+                if (position.equals(result[result.length - 1])) return result
                 result.push(position);
                 return result;
             }, isConstant),
